@@ -2580,8 +2580,36 @@ function! s:ReplaceCmd(cmd) abort
   endif
 endfunction
 
+" Columns available in the Unpushed/Unpulled sections of the summary buffer.
+" The widths here are mirrored by syntax/fugitive.vim; keep them in sync.
+let s:log_placeholders = {'date': '%ad', 'author': '%an', 'subject': '%s'}
+let s:log_widths = {'date': 10, 'author': 15}
+let s:log_order = ['date', 'author', 'subject']
+
+function! s:LogColumns() abort
+  let requested = get(g:, 'fugitive_summary_log_columns', ['subject'])
+  if type(requested) != type([])
+    let requested = ['subject']
+  endif
+  let cols = filter(copy(s:log_order), 'index(requested, v:val) >= 0')
+  if index(cols, 'subject') < 0
+    call add(cols, 'subject')
+  endif
+  return cols
+endfunction
+
 function! s:FormatLog(dict) abort
-  return a:dict.commit . ' ' . a:dict.subject
+  let line = a:dict.commit
+  for col in get(a:dict, 'columns', ['subject'])
+    let text = substitute(get(a:dict.fields, col, ''), "\t", ' ', 'g')
+    let width = get(s:log_widths, col, 0)
+    if width
+      let text = matchstr(text, '.\{,' . width . '}')
+      let text .= repeat(' ', max([0, width - strdisplaywidth(text)]))
+    endif
+    let line .= ' ' . text
+  endfor
+  return line
 endfunction
 
 function! s:FormatRebase(dict) abort
@@ -2637,10 +2665,28 @@ function! s:AddDiffSection(to, stat, label, files) abort
   endfor
 endfunction
 
+function! s:LogEntry(cols, fields) abort
+  let entry = {'type': 'Log', 'commit': get(a:fields, 0, ''), 'columns': a:cols, 'fields': {}}
+  let last = len(a:cols) - 1
+  for i in range(len(a:cols))
+    let entry.fields[a:cols[i]] = i == last
+          \ ? join(a:fields[i + 1 : -1], "\t")
+          \ : get(a:fields, i + 1, '')
+  endfor
+  let entry.subject = get(entry.fields, 'subject', '')
+  return entry
+endfunction
+
 function! s:QueryLog(refspec, limit, dir) abort
-  let [log, exec_error] = s:LinesError(['log', '-n', '' . a:limit, '--pretty=format:%h%x09%s'] + a:refspec + ['--'], a:dir)
+  let cols = s:LogColumns()
+  let args = ['log', '-n', '' . a:limit,
+        \ '--pretty=format:%h%x09' . join(map(copy(cols), 's:log_placeholders[v:val]'), '%x09')]
+  if index(cols, 'date') >= 0
+    call add(args, '--date=short')
+  endif
+  let [log, exec_error] = s:LinesError(args + a:refspec + ['--'], a:dir)
   call map(log, 'split(v:val, "\t", 1)')
-  call map(log, '{"type": "Log", "commit": v:val[0], "subject": join(v:val[1 : -1], "\t")}')
+  call map(log, 's:LogEntry(cols, v:val)')
   let result = {'error': exec_error ? 1 : 0, 'overflow': 0, 'entries': log}
   if len(log) == a:limit
     call remove(log, -1)
@@ -3023,6 +3069,7 @@ function! s:StatusRender(stat) abort
     call setline(1, to.lines)
     call setbufvar(bufnr, 'fugitive_status', stat)
     call setbufvar(bufnr, 'fugitive_expanded', stat.expanded)
+    call setbufvar(bufnr, 'fugitive_log_columns', s:LogColumns())
     setlocal nomodified readonly nomodifiable
     return ''
   finally

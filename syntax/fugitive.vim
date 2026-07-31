@@ -27,6 +27,21 @@ syn match fugitiveSymbolicRef /\.\@!\%(\.\.\@!\|[^[:space:][:cntrl:]\:.]\)\+\.\@
 syn match fugitiveHash /^\x\{4,\}\S\@!/ contained containedin=@fugitiveSection
 syn match fugitiveHash /\S\@<!\x\{4,\}\S\@!/ contained
 
+" Optional log columns; layout comes from s:FormatLog() in autoload/fugitive.vim
+" and the author width below mirrors s:log_widths there.
+let s:log_columns = get(b:, 'fugitive_log_columns', ['subject'])
+" Lookbehind rather than \zs: with \zs the match still starts at ^, where
+" fugitiveHash already claims the position.
+if index(s:log_columns, 'date') >= 0
+  syn match fugitiveLogDate /\%(^\x\{4,\} \)\@<=\d\{4}-\d\d-\d\d/ contained containedin=@fugitiveSection
+endif
+if index(s:log_columns, 'author') >= 0
+  exe 'syn match fugitiveLogAuthor /\%(^\x\{4,\} '
+        \ . (index(s:log_columns, 'date') >= 0 ? '\d\{4}-\d\d-\d\d ' : '')
+        \ . '\)\@<=.\{15}/ contained containedin=@fugitiveSection'
+endif
+unlet s:log_columns
+
 syn region fugitiveHunk start=/^\%(@@\+ -\)\@=/ end=/^\%([A-Za-z?@]\|$\)\@=/ contains=diffLine,diffRemoved,diffAdded,diffNoEOL containedin=@fugitiveSection fold
 
 for s:section in ['Untracked', 'Unstaged', 'Staged']
@@ -51,6 +66,8 @@ hi def link fugitiveStagedModifier Typedef
 hi def link fugitiveInstruction Type
 hi def link fugitiveStop Function
 hi def link fugitiveHash Identifier
+hi def link fugitiveLogDate Number
+hi def link fugitiveLogAuthor Constant
 hi def link fugitiveSymbolicRef Function
 hi def link fugitiveCount Number
 

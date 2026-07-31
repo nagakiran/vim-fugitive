@@ -24,6 +24,20 @@ that are part of Git repositories).
                         open for the current repository, it is focused
                         instead.  Press g?  or see |fugitive-maps| for usage.
 
+                                        *g:fugitive_summary_log_columns*
+                        Commits in the "Unpushed" and "Unpulled" sections show
+                        an abbreviated hash and the subject.  A commit date and
+                        a fixed width author column can be added:
+>
+                        let g:fugitive_summary_log_columns =
+                              \ ['date', 'author', 'subject']
+<
+                        The recognized columns are "date", "author", and
+                        "subject"; they are always rendered in that order,
+                        after the hash, regardless of the order given.  The
+                        default is `['subject']` .  This is unrelated to
+                        g:fugitive_summary_format, which applies to :Git log.
+
                                                 *:Git*
 :Git {args}             Run an arbitrary git command and display any output.
                         On UNIX this uses a pty and on other platforms it uses
